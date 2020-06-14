@@ -189,11 +189,12 @@ class LineProfiler(CLineProfiler):
 
 
 def show_func(filename, start_lineno, func_name, timings, unit,
-    output_unit=None, stream=None, stripzeros=False, skip=False):
+    output_unit=None, stream=None, stripzeros=False, skip=False, ignore=None):
     """ Show results for a single function.
     """
     if stream is None:
         stream = sys.stdout
+    if ignore is None: ignore = []
 
     template = '%6s %9s %12s %8s %8s  %-s'
     d = {}
@@ -230,11 +231,24 @@ def show_func(filename, start_lineno, func_name, timings, unit,
         # Fake empty lines so we can see the timings, if not the code.
         nlines = max(linenos) - min(min(linenos), start_lineno) + 1
         sublines = [''] * nlines
+    if ignore:
+        total_time_real = total_time
+        timings_linenos = [x[0] for x in timings]
+        for idx, line in enumerate(sublines):
+            if any(txt in line.upper() for txt in ignore):
+                lineno = start_lineno + idx
+                if lineno in timings_linenos:
+                    index = timings_linenos.index(lineno)
+                    time_info = list(timings[index])
+                    time = time_info[2]
+                    total_time -= time
+                    time_info[2] = -time
+                    timings[index] = tuple(time_info)
     for lineno, nhits, time in timings:
         d[lineno] = (nhits,
             '%5.1f' % (time * scalar),
             '%5.1f' % (float(time) * scalar / nhits),
-            '%5.1f' % (100 * time / total_time) )
+            '%5.1f' % (100 * max(0,time) / total_time) )
     linenos = range(start_lineno, start_lineno + len(sublines))
     empty = ('', '', '', '')
     header = template % ('Line #', 'Hits', 'Time', 'Per Hit', '% Time',
@@ -250,9 +264,11 @@ def show_func(filename, start_lineno, func_name, timings, unit,
                           line.rstrip('\n').rstrip('\r'))
         stream.write(txt)
         stream.write("\n")
+    if ignore and total_time != total_time_real:
+        stream.write("total time (filtered): %g s / %g s \n" % (total_time * unit, total_time_real * unit))
     stream.write("\n")
 
-def show_text(stats, unit, output_unit=None, stream=None, stripzeros=False, skip=False):
+def show_text(stats, unit, output_unit=None, stream=None, stripzeros=False, skip=False, ignore=None):
     """ Show text for the given timings.
     """
     if stream is None:
@@ -265,7 +281,7 @@ def show_text(stats, unit, output_unit=None, stream=None, stripzeros=False, skip
 
     for (fn, lineno, name), timings in sorted(stats.items()):
         show_func(fn, lineno, name, stats[fn, lineno, name], unit,
-            output_unit=output_unit, stream=stream, stripzeros=stripzeros, skip=skip)
+            output_unit=output_unit, stream=stream, stripzeros=stripzeros, skip=skip, ignore=ignore)
 
 @magics_class
 class LineProfilerMagics(Magics):
@@ -422,16 +438,17 @@ def main():
 
     parser = optparse.OptionParser(usage=usage,
                                    version=__version__)
-    parser.add_option('-k', '--skip', action='store_true', dest='skip',
-        default=False, help="skip displaying functions that have no runtime")
-
     parser.add_option('-u', '--unit', default=None,
                       help="specify the unit of time")
+    parser.add_option('-k', '--skip', action='store_true', dest='skip', default=False,
+                      help="skip displaying functions that have no runtime")
+    parser.add_option('-x', '--ignore', dest='ignore', default='',
+                      help="ignore lines with the following text, comma-separated")
 
     options, args = parser.parse_args()
     if len(args) != 1:
         parser.error("Must provide a filename.")
-        
+
     output_unit = None
     try:
         if options.unit is not None:
@@ -440,11 +457,16 @@ def main():
                 output_unit = time_unit
     except:
         pass
-    
-    lstats = load_stats(args[0])
     skip = True if options.skip else False
-    show_text(lstats.timings, lstats.unit,
-              output_unit=output_unit, skip=skip)
+    ignore = []
+    try:
+        if options.ignore:
+            ignore = options.ignore.upper().split(',')
+    except:
+        pass
+
+    lstats = load_stats(args[0])
+    show_text(lstats.timings, lstats.unit, output_unit=output_unit, skip=skip, ignore=ignore)
 
 if __name__ == '__main__':
     main()
