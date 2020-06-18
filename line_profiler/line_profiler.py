@@ -260,6 +260,12 @@ def show_func(filename, start_lineno, func_name, timings, unit,
     stream.write("\n")
     for lineno, line in zip(linenos, sublines):
         nhits, time, per_hit, percent = d.get(lineno, empty)
+        if lineno == start_lineno:
+            nhits = timings[0][1]
+            time = total_time
+            per_hit = '%5.1f' % (float(time) * scalar / nhits)
+            percent = '%5.1f' % (100 * total_time/total_time_real)
+            time = '%5.1f' % (time * scalar)
         txt = template % (lineno, nhits, time, per_hit, percent,
                           line.rstrip('\n').rstrip('\r'))
         stream.write(txt)
