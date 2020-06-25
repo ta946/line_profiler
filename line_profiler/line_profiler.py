@@ -64,6 +64,8 @@ CO_GENERATOR = 0x0020
 def is_generator(f):
     """ Return True if a function is a generator.
     """
+    if isinstance(f, (staticmethod,classmethod)):
+        return False
     isgen = (f.__code__.co_flags & CO_GENERATOR) != 0
     return isgen
 
@@ -76,7 +78,10 @@ class LineProfiler(CLineProfiler):
         """ Decorate a function to start the profiler on function entry and stop
         it on function exit.
         """
-        self.add_function(func)
+        if isinstance(func, (staticmethod,classmethod)):
+            self.add_function(func.__func__)
+        else:
+            self.add_function(func)
         if is_coroutine(func):
             wrapper = self.wrap_coroutine(func)
         elif is_generator(func):
@@ -119,7 +124,10 @@ class LineProfiler(CLineProfiler):
         def wrapper(*args, **kwds):
             self.enable_by_count()
             try:
-                result = func(*args, **kwds)
+                if isinstance(func, (staticmethod,classmethod)):
+                    result = func.__func__(*args[1:], **kwds)
+                else:
+                    result = func(*args, **kwds)
             finally:
                 self.disable_by_count()
             return result
