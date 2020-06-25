@@ -97,14 +97,16 @@ def execfile_inject(filename, globals=None, locals=None, include=None, exclude=N
 {0}                            if inspect.isfunction(fn_[name]):
 {0}                                fn_[name] = decorator(fn_[name])
 {0}                            elif inspect.isclass(fn_[name]):
-{0}                                for key, obj in inspect.getmembers(fn_[name]):
-{0}                                    if inspect.isfunction(obj) or inspect.ismethod(obj):
+{0}                                # for key, obj in inspect.getmembers(fn_[name]): # before decorators
+{0}                                for key, obj in fn_[name].__dict__.items(): # after decorators
+{0}                                    if inspect.isfunction(obj) or inspect.ismethod(obj) or isinstance(obj, (staticmethod,classmethod)):
 {0}                                        setattr(fn_[name], key, decorator(obj))
 {0}        elif inspect.isclass(fn_):
-{0}            for key, obj in inspect.getmembers(fn_):
+{0}            # for key, obj in inspect.getmembers(fn_): # before decorators
+{0}            for key, obj in fn_.__dict__.items(): # after decorators
 {0}                if not len(include_) or key in include_:
 {0}                    if not len(exclude_) or key not in exclude_:
-{0}                        if inspect.isfunction(obj) or inspect.ismethod(obj):
+{0}                        if inspect.isfunction(obj) or inspect.ismethod(obj) or isinstance(obj, (staticmethod,classmethod)):
 {0}                            setattr(fn_, key, decorator(obj))
 {0}            return fn_
 {0}        elif inspect.ismodule(fn_):
