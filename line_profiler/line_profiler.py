@@ -125,7 +125,13 @@ class LineProfiler(CLineProfiler):
             self.enable_by_count()
             try:
                 if isinstance(func, (staticmethod,classmethod)):
-                    result = func.__func__(*args[1:], **kwds)
+                    func_name_arr = func.__func__.__qualname__.split('.')
+                    func_name_arr.remove(func.__func__.__name__)
+                    if len(func_name_arr):
+                        class_name = func_name_arr[-1]
+                        if hasattr(args[0],'__class__') and args[0].__class__.__name__ == class_name:
+                            args = args[1:]
+                    result = func.__func__(*args, **kwds)
                 else:
                     result = func(*args, **kwds)
             finally:
