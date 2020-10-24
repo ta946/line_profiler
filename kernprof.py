@@ -335,16 +335,8 @@ def main(args=None):
             if options.auto and options.line_by_line:
                 """ if auto profile and line profiler selected, inject auto profiling code
                 into code read from script file """
-                try:
-                    execfile_inject(script_file, ns, ns, options.include, options.exclude, 
-                                    options.auto_find, options.auto_before, options.module)
-                except (KeyboardInterrupt, SystemExit):
-                    pass
-                except:
-                    if options.builtin:
-                        execfile(script_file, ns, ns)
-                    else:
-                        prof.runctx('execfile_(%r, globals())' % (script_file,), ns, ns)
+                execfile_inject(script_file, ns, ns, options.include, options.exclude, 
+                                options.auto_find, options.auto_before, options.module)
             elif options.builtin:
                 execfile(script_file, ns, ns)
             else:
