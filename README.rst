@@ -1,3 +1,114 @@
+FORKED FROM https://github.com/pyutils/line_profiler
+
+IMPORTANT NOTES:
+
+In kernprofile.py, it overwrites execfile() which reads the .py script to run and compiles it. the new function injects code that wraps all functions and classes (or ones that are included/excluded manually) in the script with @Profile before it runs execfile. This might be considered a security risk since there is code being injected and it takes input from the command line but since you are the one in control running a python script idk if thats something to be concerned about. It also breaks compatibility with python 2. but since python 2 is depreciated idk if its worth the time to make it work.
+
+In line_profiler.py, it changes abit of the inner logic of identifying and profiling functions and classes that are wrapped with the @Profile decorator which could potentially break it for your usage as I have only tested this with windows 10.
+
+
+
+CHANGES TO THIS REPO:
+
+1. command-line option to profile all functions:
+
+kernprof with line_profiler requires the user to manually decorate the functions they want to profile as it is not feasible to profile all the code.
+This can be arduous to decorate all functions, and in some cases it might not be possible to modify the script that they want to profile. And the @Profile decorator which is a builtin can throw errors when trying to run the code normally without adding 
+    
+    import line_profiler
+    
+    profile = line_profiler.LineProfiler()
+
+or
+
+    if type(__builtins__) is not dict or 'profile' not in __builtins__: profile=lambda f:f
+
+These command line arguments will allow the user to decorate all functions and classes inside the specified script (shallow, only profiles the current script) from the command line. which solves the problem of manually decorating all the functions, or if the user cannot modify the script.
+It does this by injecting code that adds the @Profile decorator to all the functions and classes in the code that is read from the py file before exec is called
+
+    argument '-a', '--auto' to automatically profile all functions and classes in script
+    
+    argument '-i', '--include' to specify which functions/classes to profile (comma separated)
+    
+    argument '-x', '--exclude' to specify which functions/classes to not profile (comma separated)
+    
+    argument '-m', '--module' to pass a single module's name in the script to profile (can also take function or classes, similar to include, but include does not work with modules whereas this argument passes the name as a variable directly in the code (which can cause it to fail if the name is undefined) as opposed to list of comma separated string in include)
+    
+    argument '-f', '--auto-find' find text in script to insert profiling code before/after (the profiling code needs to be added after all function, class and module declarations but before they are run). defaults to "if __name__ == '__main__':"
+    
+    argument '-r', '--auto-before' specify whether profiling code must be added before or after "--auto-find". defaults to after
+
+example usage:
+
+1) profile all functions and classes in script.py:
+
+    kernprof.exe -o ./script.lprof -b -l -a script.py
+
+    python -m line_profiler ./script.lprof -k -u 1e-6 > ./script.lprofout
+
+
+2) profile only these functions and classes "main" and "foo":
+
+    kernprof.exe -b -l -a -i "main,foo" script.py
+
+
+3) profile all the functions and classes except "bar":
+
+    kernprof.exe -b -l -a -x "bar" script.py
+
+
+4) profile the module "module1" imported inside script:
+
+    kernprof.exe -b -l -a -m "module1" script.py
+
+
+5) insert profiling code before foo function execution:
+
+    kernprof.exe -b -l -a -r -f "foo()" script.py
+
+
+2. command-line option to skip profiling certain lines:
+
+add a command line option -x --ignore that takes a comma separated string to remove the timings of lines that contain any of the text in a the string
+Since the text is comma separated, you cannot filter using text that has a comma in it. percent represents the percentage of filtered time (non-ignored lines) / real time
+
+
+3. command-line option to ignore non-run functions:
+
+add command line option -k, --skip to skip displaying functions that have no runtime
+
+
+4. command-line option to control unit of time:
+
+add a command line option -u --unit to specify the unit of time displayed by line_profiler for ease of use and ease of reading the result.
+Windows defaults to 1e-7 whereas specifying 1e-6 would be easier to read and mentally parse.
+The user can easily change the unit if the runtimes are expected to be long eg: seconds
+
+eg: to specify a time unit of 1us on the output of kernprof "script.lprof"
+
+    python -m line_profiler ./script.lprof -u 1e-6
+
+
+
+
+Putting it all together:
+
+I use sublime text's commands to automatically run kernprof.exe on the currently open file with all my desired command line options. I specify where i want the kernprof output to be saved which will then need to be converted into readable text by line_profiler.
+
+    cmd /k cd /d "%PATH_TO_CURRENT_SCRIPT_FOLDER%" && "%PATH_TO_PYTHON_ENV%/Scripts/kernprof.exe" -o "%PATH_TO_STORE_PROFILER_OUTPUT%/script.lprof" -b -l -a "%PATH_TO_CURRENT_SCRIPT_FILE%"
+
+Then to convert the kernprof output to readable text using line_profiler. I specify to ignore lines that containt the words import, print( and a few opencv functions. I save the line_profiler output as .py because it applies sublime text's python syntax highlighting
+
+    cmd /k "%PATH_TO_PYTHON_ENV%/python.exe" -m line_profiler "%PATH_TO_STORE_PROFILER_OUTPUT%/script.lprof" -k -u 1e-6 -x "import,print(,cv2.waitKey(,cv2.imshow(,cv2.destroy,cv2.namedWindow(" > "%PATH_TO_STORE_PROFILER_OUTPUT%/script.lprof.py'
+
+You can then open the output file to view the profiler output
+
+
+
+
+
+
+
 line_profiler and kernprof
 --------------------------
 
