@@ -66,9 +66,23 @@ def is_generator(f):
     """
     if isinstance(f, (staticmethod,classmethod)):
         return False
+    if not hasattr(f,'__code__'):
+        return False
     isgen = (f.__code__.co_flags & CO_GENERATOR) != 0
     return isgen
 
+def is_wrapped(f):
+    try:
+        if (hasattr(f,'__wrapped__') and 
+                hasattr(f,'__code__') and
+                os.path.split(f.__code__.co_filename)[1] == 'line_profiler.py' and
+                f.__code__.co_name == 'wrapper'):
+            iswrapped = True
+        else:
+            iswrapped = False
+    except:
+        iswrapped = False
+    return iswrapped
 
 class LineProfiler(CLineProfiler):
     """ A profiler that records the execution times of individual lines.
@@ -78,8 +92,16 @@ class LineProfiler(CLineProfiler):
         """ Decorate a function to start the profiler on function entry and stop
         it on function exit.
         """
+        if is_wrapped(func):
+            return func
         if isinstance(func, (staticmethod,classmethod)):
             self.add_function(func.__func__)
+        elif inspect.isclass(func):
+            for key, obj in func.__dict__.items():
+                if inspect.isfunction(obj) or inspect.ismethod(obj) or isinstance(obj, (staticmethod,classmethod)):
+                    if not is_wrapped(obj):
+                        self.add_function(obj)
+                        setattr(func, key, self.wrap_function(obj))
         else:
             self.add_function(func)
         if is_coroutine(func):
@@ -93,6 +115,8 @@ class LineProfiler(CLineProfiler):
     def wrap_generator(self, func):
         """ Wrap a generator to profile it.
         """
+        if is_wrapped(func):
+            return func
         @functools.wraps(func)
         def wrapper(*args, **kwds):
             g = func(*args, **kwds)
@@ -120,6 +144,8 @@ class LineProfiler(CLineProfiler):
     def wrap_function(self, func):
         """ Wrap a function to profile it.
         """
+        if is_wrapped(func):
+            return func
         @functools.wraps(func)
         def wrapper(*args, **kwds):
             self.enable_by_count()
