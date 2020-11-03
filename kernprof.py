@@ -170,6 +170,8 @@ def main(args=None):
         help="Code to execute before the code to profile")
     parser.add_option('-v', '--view', action='store_true',
         help="View the results of the profile in addition to saving it.")
+    parser.add_option('-t', '--first-hit', action='store_true',
+        help="Show the timing of the first hit of each line")
 
     if not sys.argv[1:]:
         parser.print_usage()
@@ -232,7 +234,7 @@ def main(args=None):
         prof.dump_stats(options.outfile)
         print('Wrote profile results to %s' % options.outfile)
         if options.view:
-            prof.print_stats()
+            prof.print_stats(show_first_hit=bool(options.first_hit))
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))

@@ -19,3 +19,5 @@ index.html
 
 .coverage
 tests/htmlcov
+_skbuild/
+*.pyd

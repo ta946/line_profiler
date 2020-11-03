@@ -60,23 +60,26 @@ cdef class LineTiming:
     cdef public int lineno
     cdef public PY_LONG_LONG total_time
     cdef public long nhits
+    cdef public PY_LONG_LONG first_hit
 
     def __init__(self, object code, int lineno):
         self.code = code
         self.lineno = lineno
         self.total_time = 0
         self.nhits = 0
+        self.first_hit = 0
 
     cdef hit(self, PY_LONG_LONG dt):
         """ Record a line timing.
         """
         self.nhits += 1
         self.total_time += dt
+        if self.first_hit == 0: self.first_hit = dt
 
     def astuple(self):
-        """ Convert to a tuple of (lineno, nhits, total_time).
+        """ Convert to a tuple of (lineno, nhits, total_time, first_hit).
         """
-        return (self.lineno, self.nhits, self.total_time)
+        return (self.lineno, self.nhits, self.total_time, self.first_hit)
 
     def __repr__(self):
         return '<LineTiming for %r\n  lineno: %r\n  nhits: %r\n  total_time: %r>' % (self.code, self.lineno, self.nhits, <long>self.total_time)

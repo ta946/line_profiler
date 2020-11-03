@@ -137,11 +137,12 @@ class LineProfiler(CLineProfiler):
         with open(filename, 'wb') as f:
             pickle.dump(lstats, f, pickle.HIGHEST_PROTOCOL)
 
-    def print_stats(self, stream=None, output_unit=None, stripzeros=False):
+    def print_stats(self, stream=None, output_unit=None, stripzeros=False, show_first_hit=False):
         """ Show the gathered statistics.
         """
         lstats = self.get_stats()
-        show_text(lstats.timings, lstats.unit, output_unit=output_unit, stream=stream, stripzeros=stripzeros)
+        show_text(lstats.timings, lstats.unit, output_unit=output_unit, stream=stream,
+                    stripzeros=stripzeros, show_first_hit=show_first_hit)
 
     def run(self, cmd):
         """ Profile a single executable statment in the main namespace.
@@ -189,17 +190,21 @@ class LineProfiler(CLineProfiler):
 
 
 def show_func(filename, start_lineno, func_name, timings, unit,
-    output_unit=None, stream=None, stripzeros=False):
+    output_unit=None, stream=None, stripzeros=False, show_first_hit=False):
     """ Show results for a single function.
     """
     if stream is None:
         stream = sys.stdout
 
-    template = '%6s %9s %12s %8s %8s  %-s'
+    if show_first_hit:
+        template = '%6s %9s %12s %8s %8s %8s %8s %8s %8s %8s  %-s'
+    else:
+        template = '%6s %9s %12s %8s %8s  %-s'
     d = {}
     total_time = 0.0
     linenos = []
-    for lineno, nhits, time in timings:
+    for timing in timings:
+        lineno, nhits, time = timing[:3]
         total_time += time
         linenos.append(lineno)
 
@@ -228,29 +233,57 @@ def show_func(filename, start_lineno, func_name, timings, unit,
         # Fake empty lines so we can see the timings, if not the code.
         nlines = max(linenos) - min(min(linenos), start_lineno) + 1
         sublines = [''] * nlines
-    for lineno, nhits, time in timings:
-        d[lineno] = (nhits,
-            '%5.1f' % (time * scalar),
-            '%5.1f' % (float(time) * scalar / nhits),
-            '%5.1f' % (100 * time / total_time) )
+    for timing in timings:
+        lineno, nhits, time = timing[:3]
+        if show_first_hit:
+            first_hit = timing[3] if len(timing) > 3 else 0
+            d[lineno] = (nhits,
+                '%5.1f' % (time * scalar),
+                '%5.1f' % (float(time) * scalar / nhits),
+                '%5.1f' % (100 * time / total_time),
+                '%5.1f' % (first_hit * scalar),
+                '%5.1f' % (100 * first_hit / total_time),
+                '%5.1f' % (((time-first_hit) * scalar) if nhits > 1 else 0),
+                '%5.1f' % ((float(time-first_hit) * scalar / (nhits-1)) if nhits > 1 else 0),
+                '%5.1f' % ((100 * (time-first_hit) / total_time) if nhits > 1 else 0),
+                )
+
+        else:
+            d[lineno] = (nhits,
+                '%5.1f' % (time * scalar),
+                '%5.1f' % (float(time) * scalar / nhits),
+                '%5.1f' % (100 * time / total_time) )
     linenos = range(start_lineno, start_lineno + len(sublines))
-    empty = ('', '', '', '')
-    header = template % ('Line #', 'Hits', 'Time', 'Per Hit', '% Time',
-        'Line Contents')
+    if show_first_hit:
+        empty = ('', '', '', '', '', '', '', '', '')
+        header = template % ('Line #', 'Hits', 'Time', 'Per Hit', '% Time',
+            '1st Hit', '1st %', 'Rem Time', 'Per Hit', 'Rem %',
+            'Line Contents')
+    else:
+        empty = ('', '', '', '')
+        header = template % ('Line #', 'Hits', 'Time', 'Per Hit', '% Time',
+            'Line Contents')
     stream.write("\n")
     stream.write(header)
     stream.write("\n")
     stream.write('=' * len(header))
     stream.write("\n")
     for lineno, line in zip(linenos, sublines):
-        nhits, time, per_hit, percent = d.get(lineno, empty)
-        txt = template % (lineno, nhits, time, per_hit, percent,
-                          line.rstrip('\n').rstrip('\r'))
+        if show_first_hit:
+            (nhits, time, per_hit, percent,
+            first_hit, first_percent, remain_time, remain_hit, remain_percent) = d.get(lineno, empty)
+            txt = template % (lineno, nhits, time, per_hit, percent,
+                              first_hit, first_percent, remain_time, remain_hit, remain_percent,
+                              line.rstrip('\n').rstrip('\r'))
+        else:
+            nhits, time, per_hit, percent = d.get(lineno, empty)
+            txt = template % (lineno, nhits, time, per_hit, percent,
+                              line.rstrip('\n').rstrip('\r'))
         stream.write(txt)
         stream.write("\n")
     stream.write("\n")
 
-def show_text(stats, unit, output_unit=None, stream=None, stripzeros=False):
+def show_text(stats, unit, output_unit=None, stream=None, stripzeros=False, show_first_hit=False):
     """ Show text for the given timings.
     """
     if stream is None:
@@ -263,7 +296,8 @@ def show_text(stats, unit, output_unit=None, stream=None, stripzeros=False):
 
     for (fn, lineno, name), timings in sorted(stats.items()):
         show_func(fn, lineno, name, stats[fn, lineno, name], unit,
-            output_unit=output_unit, stream=stream, stripzeros=stripzeros)
+            output_unit=output_unit, stream=stream, stripzeros=stripzeros,
+            show_first_hit=show_first_hit)
 
 @magics_class
 class LineProfilerMagics(Magics):
@@ -421,11 +455,13 @@ def main():
     parser = optparse.OptionParser(usage=usage,
                                    version=__version__)
 
+    parser.add_option('-t', '--first-hit', action='store_true',
+        help="Split the timings to show the first hit")
     options, args = parser.parse_args()
     if len(args) != 1:
         parser.error("Must provide a filename.")
     lstats = load_stats(args[0])
-    show_text(lstats.timings, lstats.unit)
+    show_text(lstats.timings, lstats.unit, show_first_hit=bool(options.first_hit))
 
 if __name__ == '__main__':
     main()
