@@ -123,7 +123,7 @@ def execfile_inject(filename, globals=None, locals=None, include=None, exclude=N
                                                         fn_ = decorator(fn_)
                                             def wrap(*args,**kwargs):
                                                 if callable(fn_):
-                                                    fn_(*args,**kwargs)
+                                                    return fn_(*args,**kwargs)
                                             return wrap
                                         return wrapper
                                     decorate_with(profile{}{})({})
