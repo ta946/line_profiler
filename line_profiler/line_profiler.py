@@ -155,7 +155,7 @@ class LineProfiler(CLineProfiler):
                     func_name_arr.remove(func.__func__.__name__)
                     if len(func_name_arr):
                         class_name = func_name_arr[-1]
-                        if hasattr(args[0],'__class__') and args[0].__class__.__name__ == class_name:
+                        if hasattr(args[0],'__class__'):# and args[0].__class__.__name__ == class_name:
                             args = args[1:]
                     result = func.__func__(*args, **kwds)
                 else:
@@ -288,7 +288,7 @@ def show_func(filename, start_lineno, func_name, timings, unit,
         d[lineno] = (nhits,
             '%5.1f' % (time * scalar),
             '%5.1f' % (float(time) * scalar / nhits),
-            '%5.1f' % (100 * max(0,time) / total_time) )
+            '%5.1f' % (0 if total_time == 0 else (100 * max(0,time) / total_time)) )
     linenos = range(start_lineno, start_lineno + len(sublines))
     empty = ('', '', '', '')
     header = template % ('Line #', 'Hits', 'Time', 'Per Hit', '% Time',
