@@ -229,6 +229,26 @@ def is_ipython_kernel_cell(filename):
     )
 
 
+def format_line_info(total_time, time, scalar, nhits, default_column_sizes):
+    if total_time == 0:  # Happens rarely on empty function
+        percent = ''
+    else:
+        percent = '%5.1f' % (100 * max(0,time) / total_time)
+
+    time_disp = '%5.1f' % (time * scalar)
+    if len(time_disp) > default_column_sizes['time']:
+        time_disp = '%5.1g' % (time * scalar)
+
+    perhit_disp = '%5.1f' % (float(time) * scalar / nhits)
+    if len(perhit_disp) > default_column_sizes['perhit']:
+        perhit_disp = '%5.1g' % (float(time) * scalar / nhits)
+
+    nhits_disp = "%d" % nhits
+    if len(nhits_disp) > default_column_sizes['hits']:
+        nhits_disp = '%g' % nhits
+    return nhits_disp, time_disp, perhit_disp, percent
+
+
 def show_func(filename, start_lineno, func_name, timings, unit,
               output_unit=None, stream=None, stripzeros=False, rich=False, ignore=None):
     """
@@ -363,23 +383,8 @@ def show_func(filename, start_lineno, func_name, timings, unit,
     # Loop over each line to determine better column formatting.
     # Fallback to scientific notation if columns are larger than a threshold.
     for lineno, nhits, time in timings:
-        if total_time == 0:  # Happens rarely on empty function
-            percent = ''
-        else:
-            percent = '%5.1f' % (100 * max(0,time) / total_time)
-
-        time_disp = '%5.1f' % (time * scalar)
-        if len(time_disp) > default_column_sizes['time']:
-            time_disp = '%5.1g' % (time * scalar)
-
-        perhit_disp = '%5.1f' % (float(time) * scalar / nhits)
-        if len(perhit_disp) > default_column_sizes['perhit']:
-            perhit_disp = '%5.1g' % (float(time) * scalar / nhits)
-
-        nhits_disp = "%d" % nhits
-        if len(nhits_disp) > default_column_sizes['hits']:
-            nhits_disp = '%g' % nhits
-
+        nhits_disp, time_disp, perhit_disp, percent = format_line_info(
+            total_time, time, scalar, nhits, default_column_sizes)
         display[lineno] = (nhits_disp, time_disp, perhit_disp, percent)
 
     # Expand column sizes if the numbers are large.
@@ -411,9 +416,13 @@ def show_func(filename, start_lineno, func_name, timings, unit,
         lhs_lines = []
         rhs_lines = []
         for lineno, line in zip(linenos, sublines):
-            nhits, time, per_hit, percent = display.get(lineno, empty)
-            if ignore and lineno == start_lineno:
-                percent = 100 * total_time/total_time_real
+            if lineno == start_lineno:
+                nhits, time, per_hit, percent = format_line_info(
+                    total_time_real, total_time, scalar, timings[0][1], default_column_sizes)
+                if ignore and (float(percent) == 100.0) and total_time != total_time_real:
+                    percent = '%5.1f' % (99.9)
+            else:
+                nhits, time, per_hit, percent = display.get(lineno, empty)
             txt = lhs_template % (lineno, nhits, time, per_hit, percent)
             rhs_lines.append(line.rstrip('\n').rstrip('\r'))
             lhs_lines.append(txt)
@@ -453,10 +462,16 @@ def show_func(filename, start_lineno, func_name, timings, unit,
         stream.write('\n')
     else:
         for lineno, line in zip(linenos, sublines):
-            nhits, time, per_hit, percent = display.get(lineno, empty)
+            if lineno == start_lineno:
+                nhits, time, per_hit, percent = format_line_info(
+                    total_time_real, total_time, scalar, timings[0][1], default_column_sizes)
+                if ignore and (float(percent) == 100.0) and total_time != total_time_real:
+                    percent = '%5.1f' % (99.9)
+            else:
+                nhits, time, per_hit, percent = display.get(lineno, empty)
             line_ = line.rstrip('\n').rstrip('\r')
             if ignore and lineno == start_lineno:
-                percent = 100 * total_time/total_time_real
+                percent = '%5.1f' % (100 * total_time/total_time_real)
             txt = template % (lineno, nhits, time, per_hit, percent, line_)
             try:
                 stream.write(txt)
@@ -474,7 +489,7 @@ def show_func(filename, start_lineno, func_name, timings, unit,
 
 
 def show_text(stats, unit, output_unit=None, stream=None, stripzeros=False,
-              details=True, summarize=False, sort=False, rich=False):
+              details=True, summarize=False, sort=False, rich=False, ignore=None):
     """ Show text for the given timings.
     """
     if stream is None:
